@@ -2,24 +2,24 @@
 
 
 #ifdef USE_PTHREAD
-#define lock(l)      do {                         \
-    useconds_t delay = g_MIN_DELAY;               \
-    while (pthread_mutex_trylock(q->lock) != 0) { \
-        usleep(delay);                            \
-        if (delay < g_MAX_DELAY)                  \
-            delay *= 2;                           \
-    }                                             \
-} while (0)
-#define trylock(l) do {             \
-    pthread_mutex_trylock( (l) )    \
-} while (0)
-#define unlock(l)    pthread_mutex_unlock( (l) )
-#define lock_init(l) pthread_mutex_init(   (l), NULL)
+#   define lock(l)      do {                          \
+        useconds_t delay = g_MIN_DELAY;               \
+        while (pthread_mutex_trylock(q->lock) != 0) { \
+            usleep(delay);                            \
+            if (delay < g_MAX_DELAY)                  \
+                delay *= 2;                           \
+        }                                             \
+    } while (0)
+#   define trylock(l) do {              \
+        pthread_mutex_trylock( (l) )    \
+    } while (0)
+#   define unlock(l)    pthread_mutex_unlock( (l) )
+#   define lock_init(l) pthread_mutex_init(   (l), NULL)
 #else
-#define lock(l)      0
-#define unlock(l)    0
-#define lock_init(l) 0
-#endif
+#   define lock(l)         (void)0
+#   define unlock(l)       (void)0
+#   define lock_init(l)    (void)0
+#endif // USE_PTHREAD
 
 const useconds_t g_MAX_DELAY = 1000, // cannot wait for more than  1 millisecond
                  g_MIN_DELAY = 10;   // cannot wait for less than 10 microseconds
@@ -39,7 +39,7 @@ task_t* queue_pop(taskq_t* q)
     // Return empty task sentinel if queue is empty or not allocated
     if (NULL == q || 0 == q->n_tasks) {
         DEBUG(fprintf(stderr, "QUEUE IS EMPTY!\n"));
-        unlock(q->l);
+        unlock(q->lock);
         return &g_EMPTY_TASK;
     }
 
@@ -75,7 +75,7 @@ int queue_push(taskq_t* q, task_t* task)
             fprintf(stderr, 
                 "QUEUE IS FULL! Details:\ntail = %lu, head = %lu, (tail-head) mod %lu = %lu\n",
                 q->tail, q->head, TASKQ_MAX_SZ, (q->tail-q->head)%TASKQ_MAX_SZ));
-        unlock(q->l);
+        unlock(q->lock);
         return -1; // error : task queue is full !
     }
 
@@ -93,7 +93,7 @@ int queue_push(taskq_t* q, task_t* task)
 
     ++q->n_tasks;
 
-    unlock(q->l);
+    unlock(q->lock);
     return 0; // everything went fine
 }
 
@@ -155,7 +155,7 @@ static inline bool queue_is_poppable(taskq_t* q) {
     bool state = 0;
     lock(q->l);
     state = q->n_tasks != 0 && q->pause == false;
-    unlock(q->l);
+    unlock(q->lock);
     return state;
 }
 
